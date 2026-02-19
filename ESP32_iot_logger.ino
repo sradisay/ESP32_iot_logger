@@ -4,10 +4,10 @@
 #include <Preferences.h>
 #include <PubSubClient.h>
 #include <Wire.h>
-#include <DFRobot_ADS1115.h> // Ensure you have the DFRobot_ADS1115 library installed
+#include <DFRobot_ADS1115_0_10V.h> // Ensure you have the DFRobot_ADS1115 library installed
 
 // --- I2C ADS1115 Setup ---
-DFRobot_ADS1115 ads(&Wire);
+DFRobot_ADS1115_I2C ads1115(&Wire, 0x48);
 #define I2C_SDA 21
 #define I2C_SCL 22
 
@@ -66,13 +66,10 @@ const char* HTML_FORM = R"(
 void sensorTask(void * pvParameters) {
   // Initialize I2C for the specific core
   Wire.begin(I2C_SDA, I2C_SCL);
-  
-  ads.setAddr_ADS1115(ADS1115_IIC_ADDRESS0); // 0x48
-  ads.setGain(eGAIN_TWOTHIRDS);              // Necessary for the 0-10V module range
-  ads.setMode(eMODE_SINGLE);                 // Single-shot mode for stability
-  
-  // Change the check to this:
-  ads.init(); 
+  while (!ads1115.begin()) {
+    Serial.println("Failed to initialize 0-10V ADC! Check wiring.");
+    delay(1000);
+  }
   Serial.println("ADC Initialized");
 
   // Optional: Add a small delay to let the chip settle
@@ -84,7 +81,7 @@ void sensorTask(void * pvParameters) {
   for(;;) {
     // Read from the external I2C module (returns mV)
     // We convert to V (0-10V)
-    float voltage = ads.readVoltage(0) / 1000.0;
+    float voltage = ads1115.getValue(1) / 1000.0;
 
     portENTER_CRITICAL(&bufferMux);
     if (acquisitionIndex < BATCH_SIZE) {
@@ -158,6 +155,8 @@ void setup() {
   config.mqtt_port = preferences.getInt("port", 1883);
   config.device_id = preferences.getString("dev_id", "");
   preferences.end();
+
+  
 
   if (config.ssid == "" || config.mqtt_server == "") {
     startSoftAP(); 
